@@ -898,16 +898,9 @@ require('lazy').setup({
       --vim.cmd.colorscheme 'tokyonight-night'
     end,
   },
-  {
-    'shaunsingh/nord.nvim',
-    priority = 1000,
-    config = function()
-      --vim.cmd.colorscheme 'nord'
-    end,
-  },
 
   {
-    'AlexvZyl/nordic.nvim',
+    'CapitanIndus/nordic.nvim',
     lazy = false,
     priority = 1000,
     config = function()
