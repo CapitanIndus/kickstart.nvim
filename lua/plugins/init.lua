@@ -1,0 +1,15 @@
+return {
+  'NMAC427/guess-indent.nvim',
+  { import = 'plugins.whichkey' },
+  { import = 'plugins.telescope' },
+  { import = 'plugins.gitsigns' },
+  { import = 'plugins.lsp' },
+  { import = 'plugins.conform' },
+  { import = 'plugins.blink' },
+  { import = 'plugins.colorscheme_tokyonight' },
+  { import = 'plugins.colorscheme_nordic' },
+  { import = 'plugins.todo_comments' },
+  { import = 'plugins.treesitter' },
+  { import = 'kickstart.plugins.neo-tree' },
+}
+
