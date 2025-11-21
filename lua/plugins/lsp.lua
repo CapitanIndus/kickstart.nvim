@@ -106,6 +106,18 @@ return {
           },
         },
       },
+      intelephense = {
+        settings = {
+          intelephense = {
+            environment = {
+              phpVersion = '8.4', -- damit du volle PHP 8.4-Unterstützung bekommst
+            },
+            files = {
+              maxSize = 5000000,
+            },
+          },
+        },
+      },
     }
 
     local ensure_installed = vim.tbl_keys(servers or {})
@@ -126,4 +138,3 @@ return {
     }
   end,
 }
-

@@ -11,5 +11,9 @@ return {
   { import = 'plugins.todo_comments' },
   { import = 'plugins.treesitter' },
   { import = 'kickstart.plugins.neo-tree' },
+  {
+    'lukas-reineke/indent-blankline.nvim',
+    main = 'ibl',
+    opts = {},
+  },
 }
-
