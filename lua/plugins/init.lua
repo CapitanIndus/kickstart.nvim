@@ -16,4 +16,7 @@ return {
     main = 'ibl',
     opts = {},
   },
+  {
+    'mfussenegger/nvim-jdtls',
+  },
 }
