@@ -5,6 +5,7 @@ return {
   { import = 'plugins.gitsigns' },
   { import = 'plugins.lsp' },
   { import = 'plugins.conform' },
+  { import = 'plugins.code_companion' },
   { import = 'plugins.blink' },
   { import = 'plugins.colorscheme_tokyonight' },
   { import = 'plugins.colorscheme_nordic' },

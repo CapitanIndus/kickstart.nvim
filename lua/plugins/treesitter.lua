@@ -4,8 +4,22 @@ return {
   main = 'nvim-treesitter.configs',
   opts = {
     ensure_installed = {
-      'bash', 'c', 'diff', 'html', 'lua', 'luadoc',
-      'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc'
+      'bash',
+      'c',
+      'css',
+      'diff',
+      'html',
+      'javascript',
+      'json',
+      'lua',
+      'luadoc',
+      'markdown',
+      'markdown_inline',
+      'php',
+      'python',
+      'query',
+      'vim',
+      'vimdoc',
     },
     auto_install = true,
     highlight = {
@@ -15,4 +29,3 @@ return {
     indent = { enable = true, disable = { 'ruby' } },
   },
 }
-
