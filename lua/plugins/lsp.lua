@@ -9,6 +9,8 @@ return {
     'saghen/blink.cmp',
   },
   config = function()
+    local mason_biome = vim.fn.stdpath('data') .. '/mason/bin/biome'
+
     vim.api.nvim_create_autocmd('LspAttach', {
       group = vim.api.nvim_create_augroup('kickstart-lsp-attach', { clear = true }),
       callback = function(event)
@@ -97,7 +99,39 @@ return {
     local capabilities = require('blink.cmp').get_lsp_capabilities()
 
     local servers = {
+      biome = {
+        cmd = function(dispatchers, config)
+          local cmd = mason_biome
+          local local_cmd = (config or {}).root_dir and config.root_dir .. '/node_modules/.bin/biome'
+
+          if local_cmd and vim.fn.executable(local_cmd) == 1 then
+            cmd = local_cmd
+          elseif vim.fn.executable 'biome' == 1 then
+            cmd = 'biome'
+          end
+
+          return vim.lsp.rpc.start({ cmd, 'lsp-proxy' }, dispatchers)
+        end,
+        root_dir = function(bufnr, on_dir)
+          local root_markers = {
+            'biome.json',
+            'biome.jsonc',
+            'package.json',
+            'package-lock.json',
+            'yarn.lock',
+            'pnpm-lock.yaml',
+            'bun.lockb',
+            'bun.lock',
+            '.git',
+          }
+          local filename = vim.api.nvim_buf_get_name(bufnr)
+          local root = vim.fs.root(bufnr, root_markers) or vim.fs.dirname(filename) or vim.fn.getcwd()
+          on_dir(root)
+        end,
+        single_file_support = true,
+      },
       cssls = {},
+      superhtml = {},
       pylsp = {},
       lua_ls = {
         settings = {
@@ -127,14 +161,15 @@ return {
 
     require('mason-lspconfig').setup {
       ensure_installed = {},
-      automatic_installation = false,
-      handlers = {
-        function(server_name)
-          local server = servers[server_name] or {}
-          server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
-          require('lspconfig')[server_name].setup(server)
-        end,
-      },
+      automatic_enable = false,
     }
+
+    for server_name, server in pairs(servers) do
+      if server_name ~= 'rust_analyzer' then
+        server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
+        vim.lsp.config(server_name, server)
+        vim.lsp.enable(server_name)
+      end
+    end
   end,
 }

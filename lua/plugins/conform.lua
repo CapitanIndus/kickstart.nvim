@@ -27,8 +27,14 @@ return {
       end
     end,
     formatters_by_ft = {
+      css = { 'biome' },
+      javascript = { 'biome' },
+      javascriptreact = { 'biome' },
+      json = { 'biome' },
+      jsonc = { 'biome' },
       lua = { 'stylua' },
+      typescript = { 'biome' },
+      typescriptreact = { 'biome' },
     },
   },
 }
-

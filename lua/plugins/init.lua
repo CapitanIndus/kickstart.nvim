@@ -1,5 +1,17 @@
 return {
-  'NMAC427/guess-indent.nvim',
+  {
+    'NMAC427/guess-indent.nvim',
+    config = function()
+      require('guess-indent').setup {
+        filetype_exclude = {
+          'javascript',
+          'javascriptreact',
+          'typescript',
+          'typescriptreact',
+        },
+      }
+    end,
+  },
   { import = 'plugins.whichkey' },
   { import = 'plugins.telescope' },
   { import = 'plugins.gitsigns' },
