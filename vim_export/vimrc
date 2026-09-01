@@ -1,0 +1,369 @@
+" Pluginfreie Vim-Konfiguration fuer den Einsatz auf Debian Trixie.
+" Die Datei laedt nichts aus dem Netzwerk und installiert keine Software.
+
+scriptencoding utf-8
+set nocompatible
+set encoding=utf-8
+
+let mapleader = ' '
+let maplocalleader = ' '
+
+" Den Export unabhaengig von seinem Ablageort als kleine Runtime verwenden.
+let s:vim_export_root = fnamemodify(resolve(expand('<sfile>:p')), ':h')
+if index(split(&runtimepath, ','), s:vim_export_root) < 0
+  execute 'set runtimepath^=' . fnameescape(s:vim_export_root)
+endif
+let s:vim_export_after = s:vim_export_root . '/after'
+if index(split(&runtimepath, ','), s:vim_export_after) < 0
+  execute 'set runtimepath+=' . fnameescape(s:vim_export_after)
+endif
+
+" Darstellung und allgemeines Editierverhalten.
+set number
+set mouse=a
+set showmode
+set breakindent
+set ignorecase
+set smartcase
+set incsearch
+set hlsearch
+set signcolumn=auto
+set updatetime=250
+set timeout
+set timeoutlen=300
+set ttimeout
+set ttimeoutlen=50
+set splitright
+set splitbelow
+set list
+set listchars=tab:»\ ,trail:·,nbsp:␣
+set tabstop=4
+set shiftwidth=4
+set cursorline
+set scrolloff=10
+set confirm
+set hidden
+set autoread
+set backspace=indent,eol,start
+set wildmenu
+set wildmode=longest:full,full
+set path=.,**
+set wildignore+=.git/**,node_modules/**,vendor/**,target/**,.venv/**,dist/**,build/**
+set completeopt=menuone,noinsert,noselect
+
+" Debians Terminal-Vim hat nicht zwingend Clipboard-Unterstuetzung.
+if has('clipboard')
+  set clipboard=unnamedplus
+endif
+
+" Persistentes Undo zentral statt als .un~-Dateien in Projekten speichern.
+let s:state_home = exists('$XDG_STATE_HOME') && !empty($XDG_STATE_HOME)
+      \ ? expand($XDG_STATE_HOME)
+      \ : expand('~/.local/state')
+let s:undo_dir = s:state_home . '/vim/undo'
+if !isdirectory(s:undo_dir)
+  silent! call mkdir(s:undo_dir, 'p', 0700)
+endif
+if isdirectory(s:undo_dir) && filewritable(s:undo_dir) == 2
+  let &undodir = s:undo_dir . '//'
+  set undofile
+endif
+
+" Ausschliesslich mit Vim ausgelieferte Runtime-Funktionen verwenden.
+let g:netrw_banner = 0
+let g:netrw_liststyle = 3
+let g:netrw_altv = 1
+let g:netrw_winsize = 25
+
+filetype plugin indent on
+syntax enable
+if !empty(globpath(&runtimepath, 'colors/habamax.vim'))
+  colorscheme habamax
+else
+  colorscheme default
+endif
+
+" ---------------------------------------------------------------------------
+" Lokale IDE-lite-Helfer
+
+function! s:GitRoot() abort
+  if !executable('git')
+    return ''
+  endif
+
+  let l:command = 'git -C ' . shellescape(getcwd())
+        \ . ' rev-parse --show-toplevel 2>/dev/null'
+  let l:output = systemlist(l:command)
+  if v:shell_error == 0 && !empty(l:output) && isdirectory(l:output[0])
+    return fnamemodify(l:output[0], ':p')
+  endif
+  return ''
+endfunction
+
+function! s:ProjectRoot() abort
+  let l:git_root = s:GitRoot()
+  return empty(l:git_root) ? fnamemodify(getcwd(), ':p') : l:git_root
+endfunction
+
+function! s:SetFileQuickfix(files, title) abort
+  let l:items = []
+  for l:file in a:files
+    if filereadable(l:file)
+      call add(l:items, {
+            \ 'filename': fnamemodify(l:file, ':p'),
+            \ 'lnum': 1,
+            \ 'col': 1,
+            \ 'text': ''
+            \ })
+    endif
+  endfor
+  call setqflist([], 'r', {'title': a:title, 'items': l:items})
+
+  if empty(l:items)
+    echo 'Keine Dateien gefunden.'
+  else
+    botright copen
+  endif
+endfunction
+
+function! s:Files() abort
+  let l:root = s:ProjectRoot()
+  let l:git_root = s:GitRoot()
+
+  if !empty(l:git_root)
+    let l:command = 'git -C ' . shellescape(l:git_root)
+          \ . ' ls-files --cached --others --exclude-standard'
+    let l:relative_files = systemlist(l:command)
+    if v:shell_error != 0
+      echohl ErrorMsg
+      echom 'Git konnte die Projektdateien nicht auflisten.'
+      echohl None
+      return
+    endif
+    let l:files = map(l:relative_files, 'l:git_root . v:val')
+  elseif executable('find')
+    let l:command = 'find ' . shellescape(l:root)
+          \ . ' \( -type d \( -name .git -o -name node_modules'
+          \ . ' -o -name vendor -o -name target -o -name .venv'
+          \ . ' -o -name dist -o -name build \) -prune \)'
+          \ . ' -o -type f -print'
+    let l:files = systemlist(l:command)
+    if v:shell_error != 0
+      echohl ErrorMsg
+      echom 'find konnte die Projektdateien nicht auflisten.'
+      echohl None
+      return
+    endif
+  else
+    echohl ErrorMsg
+    echom 'Weder ein Git-Arbeitsverzeichnis noch find ist verfuegbar.'
+    echohl None
+    return
+  endif
+
+  call sort(l:files)
+  call s:SetFileQuickfix(l:files, 'Dateien: ' . l:root)
+endfunction
+
+function! s:ProjectGrep(pattern) abort
+  if !executable('grep')
+    echohl ErrorMsg
+    echom 'grep ist nicht verfuegbar.'
+    echohl None
+    return
+  endif
+
+  let l:root = s:ProjectRoot()
+  let l:command = 'grep -RInH -I'
+        \ . ' --exclude-dir=.git --exclude-dir=node_modules'
+        \ . ' --exclude-dir=vendor --exclude-dir=target'
+        \ . ' --exclude-dir=.venv --exclude-dir=dist --exclude-dir=build'
+        \ . ' -- ' . shellescape(a:pattern) . ' ' . shellescape(l:root)
+  let l:lines = systemlist(l:command)
+  let l:status = v:shell_error
+
+  if l:status > 1
+    echohl ErrorMsg
+    echom 'grep ist mit Status ' . l:status . ' fehlgeschlagen.'
+    echohl None
+    return
+  endif
+
+  call setqflist([], 'r', {
+        \ 'title': 'Suche: ' . a:pattern,
+        \ 'lines': l:lines,
+        \ 'efm': '%f:%l:%m'
+        \ })
+  if empty(l:lines)
+    cclose
+    echo 'Keine Treffer fuer: ' . a:pattern
+  else
+    botright copen
+  endif
+endfunction
+
+function! s:Recent() abort
+  let l:files = []
+  let l:seen = {}
+  for l:file in v:oldfiles
+    let l:absolute = fnamemodify(l:file, ':p')
+    if filereadable(l:absolute) && !has_key(l:seen, l:absolute)
+      let l:seen[l:absolute] = 1
+      call add(l:files, l:absolute)
+    endif
+  endfor
+  call s:SetFileQuickfix(l:files, 'Zuletzt verwendete Dateien')
+endfunction
+
+function! s:Git(arguments) abort
+  if !executable('git')
+    echohl ErrorMsg
+    echom 'git ist nicht verfuegbar.'
+    echohl None
+    return
+  endif
+
+  let l:arguments = empty(a:arguments) ? 'status --short --branch' : a:arguments
+  execute '!git -C ' . shellescape(getcwd()) . ' ' . l:arguments
+endfunction
+
+function! s:Format(command) abort
+  let l:input = join(getline(1, '$'), "\n")
+  if &endofline
+    let l:input .= "\n"
+  endif
+
+  let l:output = systemlist(a:command, l:input)
+  let l:status = v:shell_error
+  if l:status != 0
+    echohl ErrorMsg
+    echom 'Formatter fehlgeschlagen (Status ' . l:status . '); Buffer unveraendert.'
+    if !empty(l:output)
+      echom join(l:output, "\n")
+    endif
+    echohl None
+    return
+  endif
+
+  if empty(l:output) && !(line('$') == 1 && getline(1) ==# '')
+    echohl ErrorMsg
+    echom 'Formatter lieferte keine Ausgabe; Buffer unveraendert.'
+    echohl None
+    return
+  endif
+
+  let l:view = winsaveview()
+  let l:new_lines = empty(l:output) ? [''] : l:output
+  call setline(1, l:new_lines)
+  if line('$') > len(l:new_lines)
+    silent! undojoin
+    execute (len(l:new_lines) + 1) . ',$delete _'
+  endif
+  call winrestview(l:view)
+  echo 'Buffer formatiert; noch nicht gespeichert.'
+endfunction
+
+command! -nargs=0 Files call <SID>Files()
+command! -nargs=+ ProjectGrep call <SID>ProjectGrep(<q-args>)
+command! -nargs=0 Recent call <SID>Recent()
+command! -nargs=* -complete=shellcmd Git call <SID>Git(<q-args>)
+command! -nargs=+ -complete=shellcmd Format call <SID>Format(<q-args>)
+
+" ---------------------------------------------------------------------------
+" Gewohnte Tastenbelegung
+
+nnoremap <silent> <Esc> :nohlsearch<CR>
+tnoremap <Esc><Esc> <C-\><C-n>
+inoremap nr <Esc>
+
+nnoremap <C-h> <C-w>h
+nnoremap <C-j> <C-w>j
+nnoremap <C-k> <C-w>k
+nnoremap <C-l> <C-w>l
+
+nnoremap <silent> <leader>ws :wincmd l<CR>
+nnoremap <silent> <leader>wl :wincmd k<CR>
+nnoremap <silent> <leader>wr :wincmd j<CR>
+nnoremap <silent> <leader>wn :wincmd h<CR>
+
+nnoremap z n
+xnoremap z n
+onoremap z n
+nnoremap Z N
+xnoremap Z N
+onoremap Z N
+
+nnoremap n h
+xnoremap n h
+onoremap n h
+nnoremap r j
+xnoremap r j
+onoremap r j
+nnoremap s l
+xnoremap s l
+onoremap s l
+nnoremap l k
+xnoremap l k
+onoremap l k
+
+nnoremap <silent> h <Nop>
+xnoremap <silent> h <Nop>
+onoremap <silent> h <Nop>
+nnoremap <silent> j <Nop>
+xnoremap <silent> j <Nop>
+onoremap <silent> j <Nop>
+nnoremap <silent> k <Nop>
+xnoremap <silent> k <Nop>
+onoremap <silent> k <Nop>
+
+nnoremap ä u
+nnoremap Ä <C-r>
+nnoremap u i
+nnoremap U I
+
+nnoremap e w
+xnoremap e w
+onoremap e w
+nnoremap t b
+xnoremap t b
+onoremap t b
+nnoremap i e
+xnoremap i e
+
+nnoremap E W
+xnoremap E W
+onoremap E W
+nnoremap T B
+xnoremap T B
+onoremap T B
+nnoremap I E
+xnoremap I E
+
+nnoremap b t
+xnoremap b t
+onoremap b t
+nnoremap B T
+xnoremap B T
+onoremap B T
+
+" Suche, Dateien, Buffer und Quickfix.
+nnoremap <leader>sf :Files<CR>
+nnoremap <leader>sg :ProjectGrep<Space>
+nnoremap <silent> <leader>sw :call <SID>ProjectGrep(expand('<cword>'))<CR>
+nnoremap <leader>sh :help<Space>
+nnoremap <leader>sk :map<CR>
+nnoremap <leader>s. :Recent<CR>
+nnoremap <leader>/ /
+nnoremap <leader><leader> :buffers<CR>:buffer<Space>
+nnoremap <leader>q :copen<CR>
+nnoremap <silent> ]q :cnext<CR>
+nnoremap <silent> [q :cprevious<CR>
+nnoremap <silent> \ :Lexplore<CR>
+
+" Git und explizite Formatierung.
+nnoremap <leader>gs :Git status<CR>
+nnoremap <leader>gd :Git diff<CR>
+nnoremap <leader>f :Format<Space>
+xnoremap <leader>f :<C-u>Format<Space>
+
+execute 'nnoremap <leader>sv :edit ' . fnameescape(s:vim_export_root . '/vimrc') . '<CR>'
